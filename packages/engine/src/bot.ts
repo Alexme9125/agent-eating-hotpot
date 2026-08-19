@@ -109,16 +109,16 @@ export function botThinkMs(state: TableState): number {
   const hesitation = Math.max(0, 1 - dist / 0.12);
   const triangular = (Math.random() + Math.random()) / 2;
   const span = style.thinkMax - style.thinkMin;
-  const extraTank = Math.random() < 0.14 ? 1600 + Math.random() * 2400 : 0;
-  const snap = dist > 0.24 && Math.random() < 0.16 ? -Math.min(1600, span * 0.22) : 0;
-  const pairBeat = spot?.kind === "pair" ? 900 : 0;
+  const extraTank = Math.random() < 0.1 ? 800 + Math.random() * 1800 : 0;
+  const snap = dist > 0.24 && Math.random() < 0.18 ? -Math.min(1400, span * 0.22) : 0;
+  const pairBeat = spot?.kind === "pair" ? 400 : 0;
   const ms =
     style.thinkMin +
-    span * (0.28 + 0.62 * triangular) +
-    hesitation * 3400 +
+    span * (0.22 + 0.58 * triangular) +
+    hesitation * 2000 +
     extraTank +
     snap +
     pairBeat +
-    Math.random() * 800;
-  return Math.round(Math.min(16_000, Math.max(5_200, ms)));
+    Math.random() * 500;
+  return Math.round(Math.min(12_000, Math.max(3_600, ms)));
 }

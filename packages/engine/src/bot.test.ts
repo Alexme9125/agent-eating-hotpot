@@ -141,8 +141,8 @@ describe("bot personas", () => {
     const state = awaitingWith("gemini", [c(3), c(11)]);
     for (let i = 0; i < 12; i++) {
       const ms = botThinkMs(state);
-      expect(ms).toBeGreaterThanOrEqual(5_200);
-      expect(ms).toBeLessThanOrEqual(16_000);
+      expect(ms).toBeGreaterThanOrEqual(3_600);
+      expect(ms).toBeLessThanOrEqual(12_000);
     }
     const cautious = styleForPersona("claude");
     const aggro = styleForPersona("deepseek");
