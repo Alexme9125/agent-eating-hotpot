@@ -1,10 +1,14 @@
 export interface PlayStyle {
-  /** Fold when per-token EV is below this. Higher means more cautious. */
+  /** Fold when per-token EV is below this. Higher (less negative) means more cautious. */
   foldBelow: number;
   /** Typical share of the legal add range, before EV scaling. */
   sizeBias: number;
   /** Random wobble on the fold line so they don't play like a script. */
   mood: number;
+  /** Extra chance to fold a barely-playable spot. */
+  scratch: number;
+  /** Chance to push the legal max when both EV and win-rate are high. */
+  shove: number;
   thinkMin: number;
   thinkMax: number;
   /** Shown while they tank — flavor only, not an action trigger. */
@@ -26,9 +30,11 @@ export const LLM_PERSONAS: readonly LlmPersona[] = [
     initials: "CL",
     color: "#D97757",
     style: {
-      foldBelow: 0.08,
-      sizeBias: 0.2,
-      mood: 0.03,
+      foldBelow: -0.38,
+      sizeBias: 0.22,
+      mood: 0.05,
+      scratch: 0.22,
+      shove: 0.12,
       thinkMin: 7200,
       thinkMax: 14000,
       thinkLines: ["先看区间…", "这点不太稳", "小一点吧", "过掉也行"],
@@ -40,9 +46,11 @@ export const LLM_PERSONAS: readonly LlmPersona[] = [
     initials: "GPT",
     color: "#10A37F",
     style: {
-      foldBelow: 0.07,
-      sizeBias: 0.22,
-      mood: 0.035,
+      foldBelow: -0.4,
+      sizeBias: 0.26,
+      mood: 0.045,
+      scratch: 0.18,
+      shove: 0.14,
       thinkMin: 7000,
       thinkMax: 13200,
       thinkLines: ["算一下期望…", "赔率一般", "控制一下", "再确认"],
@@ -54,9 +62,11 @@ export const LLM_PERSONAS: readonly LlmPersona[] = [
     initials: "KI",
     color: "#1A1A1A",
     style: {
-      foldBelow: 0.09,
-      sizeBias: 0.18,
-      mood: 0.025,
+      foldBelow: -0.36,
+      sizeBias: 0.2,
+      mood: 0.04,
+      scratch: 0.28,
+      shove: 0.08,
       thinkMin: 7800,
       thinkMax: 14500,
       thinkLines: ["慢慢看…", "空间不够", "保守一点", "先放过"],
@@ -68,9 +78,11 @@ export const LLM_PERSONAS: readonly LlmPersona[] = [
     initials: "GLM",
     color: "#1A73E8",
     style: {
-      foldBelow: 0.04,
-      sizeBias: 0.3,
-      mood: 0.04,
+      foldBelow: -0.46,
+      sizeBias: 0.36,
+      mood: 0.045,
+      scratch: 0.12,
+      shove: 0.28,
       thinkMin: 6200,
       thinkMax: 11800,
       thinkLines: ["掂量一下", "中规中矩", "可以试", "下多少呢"],
@@ -82,9 +94,11 @@ export const LLM_PERSONAS: readonly LlmPersona[] = [
     initials: "QW",
     color: "#615CED",
     style: {
-      foldBelow: 0.03,
-      sizeBias: 0.34,
+      foldBelow: -0.48,
+      sizeBias: 0.4,
       mood: 0.05,
+      scratch: 0.1,
+      shove: 0.32,
       thinkMin: 5800,
       thinkMax: 11200,
       thinkLines: ["看牌", "区间还行", "跟一手", "别贪太多"],
@@ -96,9 +110,11 @@ export const LLM_PERSONAS: readonly LlmPersona[] = [
     initials: "GR",
     color: "#1D1D1F",
     style: {
-      foldBelow: 0,
-      sizeBias: 0.48,
+      foldBelow: -0.54,
+      sizeBias: 0.52,
       mood: 0.1,
+      scratch: 0.08,
+      shove: 0.58,
       thinkMin: 5200,
       thinkMax: 10800,
       thinkLines: ["有意思", "搏一把？", "许愿池挺肥", "试试运气"],
@@ -110,9 +126,11 @@ export const LLM_PERSONAS: readonly LlmPersona[] = [
     initials: "GE",
     color: "#8E83F3",
     style: {
-      foldBelow: -0.025,
-      sizeBias: 0.58,
+      foldBelow: -0.56,
+      sizeBias: 0.62,
       mood: 0.05,
+      scratch: 0.05,
+      shove: 0.64,
       thinkMin: 5000,
       thinkMax: 10200,
       thinkLines: ["能吃就吃", "这把有空间", "多添一点", "打满一点"],
@@ -124,9 +142,11 @@ export const LLM_PERSONAS: readonly LlmPersona[] = [
     initials: "DS",
     color: "#4D6BFE",
     style: {
-      foldBelow: -0.035,
-      sizeBias: 0.64,
+      foldBelow: -0.58,
+      sizeBias: 0.7,
       mood: 0.045,
+      scratch: 0.04,
+      shove: 0.72,
       thinkMin: 4800,
       thinkMax: 9800,
       thinkLines: ["往里塞", "别让池子闲着", "加大", "跟到底"],
@@ -138,9 +158,11 @@ export const LLM_PERSONAS: readonly LlmPersona[] = [
     initials: "MM",
     color: "#7C5CFF",
     style: {
-      foldBelow: -0.015,
-      sizeBias: 0.55,
+      foldBelow: -0.55,
+      sizeBias: 0.58,
       mood: 0.06,
+      scratch: 0.06,
+      shove: 0.55,
       thinkMin: 5200,
       thinkMax: 10400,
       thinkLines: ["冲一下", "感觉不错", "添多点", "吃火锅啊"],
@@ -157,9 +179,11 @@ export function personaById(id: string): LlmPersona | undefined {
 export function styleForPersona(id: string | undefined): PlayStyle {
   return (
     personaById(id ?? "")?.style ?? {
-      foldBelow: 0.03,
-      sizeBias: 0.35,
-      mood: 0.04,
+      foldBelow: -0.46,
+      sizeBias: 0.38,
+      mood: 0.05,
+      scratch: 0.1,
+      shove: 0.3,
       thinkMin: 6000,
       thinkMax: 11000,
       thinkLines: DEFAULT_THINK_LINES,
