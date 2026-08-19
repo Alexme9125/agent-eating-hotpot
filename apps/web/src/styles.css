@@ -324,6 +324,7 @@ em { font-style: normal; color: var(--accent); }
 }
 .slogan.win { color: #059669; }
 .slogan.triple { color: #d97706; }
+.slogan.lose { color: #c2410c; }
 .slogan.skip { color: #64748b; }
 .slogan.horn { color: #e11d48; }
 .slogan.super { color: #7c3aed; }

@@ -75,7 +75,7 @@ function statusText(room: Room): string {
     if (kind === "horn") return table.outcome?.multiplier === 4 ? "超级牛角尖！" : "牛角尖！";
     if (kind === "triple_win") return "三张通吃！";
     if (kind === "win") return "爽吃许愿池";
-    if (kind === "lose" || kind === "triple_lose") return "投入许愿池";
+    if (kind === "lose" || kind === "triple_lose") return "挨饿";
     return "结算中";
   }
   if (table.phase === "settlement") return "本盘结束";

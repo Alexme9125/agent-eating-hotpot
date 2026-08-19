@@ -26,6 +26,7 @@ function centerOf(el: Element, root: DOMRect): { x: number; y: number } {
 function sloganFor(outcome: RevealOutcome): { text: string; tone: string } | null {
   if (outcome.kind === "win") return { text: "爽吃", tone: "win" };
   if (outcome.kind === "triple_win") return { text: "通吃", tone: "triple" };
+  if (outcome.kind === "lose" || outcome.kind === "triple_lose") return { text: "挨饿", tone: "lose" };
   if (outcome.kind === "consecutive") return { text: "连张", tone: "skip" };
   if (outcome.kind === "horn") {
     return outcome.multiplier === 4
