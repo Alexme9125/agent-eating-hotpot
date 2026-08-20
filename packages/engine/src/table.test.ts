@@ -8,6 +8,7 @@ import {
   forceAwaiting,
   startHand,
   toPublicState,
+  betPresets,
 } from "./index.js";
 import type { Card, Player, Rank, Suit, TableState } from "./types.js";
 
@@ -148,7 +149,40 @@ describe("table flow", () => {
     expect(DEFAULT_CONFIG.dealsUntilSplit).toBe(24);
     expect(DEFAULT_CONFIG.minAdd).toBe(5_000);
   });
+});
 
+describe("betPresets", () => {
+  it("offers min, round mids, and max on a full legal range", () => {
+    expect(betPresets({ min: 5_000, max: 100_000, locked: false })).toEqual([
+      { label: "最小", amount: 5_000 },
+      { label: "25K", amount: 25_000 },
+      { label: "50K", amount: 50_000 },
+      { label: "最大", amount: 100_000 },
+    ]);
+  });
+
+  it("drops round amounts that are outside the legal window", () => {
+    expect(betPresets({ min: 5_000, max: 15_000, locked: false })).toEqual([
+      { label: "最小", amount: 5_000 },
+      { label: "10K", amount: 10_000 },
+      { label: "最大", amount: 15_000 },
+    ]);
+  });
+
+  it("falls back to a midpoint when no round node fits", () => {
+    expect(betPresets({ min: 5_000, max: 9_000, locked: false })).toEqual([
+      { label: "最小", amount: 5_000 },
+      { label: "一半", amount: 7_000 },
+      { label: "最大", amount: 9_000 },
+    ]);
+  });
+
+  it("hides chips when the add is locked to the minimum", () => {
+    expect(betPresets({ min: 5_000, max: 5_000, locked: true })).toEqual([]);
+  });
+});
+
+describe("ante", () => {
   it("collects 50K ante from each player into the wish pool", () => {
     let state = createTable(fourPlayers(), DEFAULT_CONFIG, 3);
     state = startHand(state);

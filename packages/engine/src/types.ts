@@ -110,6 +110,11 @@ export interface BetRange {
   locked: boolean;
 }
 
+export interface BetPreset {
+  label: string;
+  amount: number;
+}
+
 export interface HoleHint {
   kind: HoleKind;
   winRanks: Rank[];
