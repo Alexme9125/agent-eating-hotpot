@@ -211,11 +211,13 @@ export function TableView({
         ) : (
           <p className="log-line">{play.logs.at(-1)?.text ?? play.status}</p>
         )}
-        <div className="log">
-          {play.logs.slice(-4).map((line) => (
-            <div key={line.id}>{line.text}</div>
-          ))}
-        </div>
+        {yourTurn ? null : (
+          <div className="log">
+            {play.logs.slice(-4).map((line) => (
+              <div key={line.id}>{line.text}</div>
+            ))}
+          </div>
+        )}
       </footer>
 
       {state ? (
