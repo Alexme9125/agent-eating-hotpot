@@ -1,4 +1,4 @@
-import { formatTokens, type BetRange } from "@hotpot/engine";
+import { betPresets, formatTokens, type BetRange } from "@hotpot/engine";
 import { useEffect, useState } from "react";
 
 export function ActionBar({
@@ -27,11 +27,29 @@ export function ActionBar({
     );
   }
 
+  const presets = betPresets(range);
+
   return (
     <div className="action-bar">
       <button className="btn ghost fold-btn" disabled={disabled} onClick={onFold}>
         放弃
       </button>
+      {presets.length > 0 ? (
+        <div className="bet-presets" role="group" aria-label="快捷添菜">
+          {presets.map((preset) => (
+            <button
+              key={preset.amount}
+              type="button"
+              className={`bet-chip ${amount === preset.amount ? "on" : ""}`}
+              disabled={disabled}
+              aria-pressed={amount === preset.amount}
+              onClick={() => setAmount(preset.amount)}
+            >
+              {preset.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
       <div className="slider-wrap">
         <input
           type="range"
@@ -45,7 +63,7 @@ export function ActionBar({
         <b>{formatTokens(amount)}</b>
       </div>
       <button className="btn primary add-btn" disabled={disabled} onClick={() => onAdd(amount)}>
-        {range.locked ? "最小添菜" : "添菜"}
+        {range.locked ? "最小添菜" : `添菜 ${formatTokens(amount)}`}
       </button>
     </div>
   );

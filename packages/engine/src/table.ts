@@ -3,6 +3,7 @@ import { formatTokens } from "./format.js";
 import { nextRng, shuffleInPlace } from "./rng.js";
 import { holeHint, holeKind, isAceKing, orderedRanks } from "./rules.js";
 import type {
+  BetPreset,
   BetRange,
   Card,
   LogEntry,
@@ -239,6 +240,26 @@ export function betRangeFor(
     return { min: locked, max: locked, locked: true };
   }
   return { min, max, locked: false };
+}
+
+const ROUND_ADDS = [10_000, 25_000, 50_000] as const;
+const ADD_STEP = 1000;
+const PRESET_CAP = 4;
+
+export function betPresets(range: BetRange, step = ADD_STEP): BetPreset[] {
+  if (range.locked || range.min >= range.max) return [];
+  const { min, max } = range;
+  const mids: BetPreset[] = ROUND_ADDS.filter((n) => n > min && n < max).map((n) => ({
+    label: formatTokens(n),
+    amount: n,
+  }));
+  if (mids.length === 0) {
+    const half = Math.round((min + max) / 2 / step) * step;
+    if (half > min && half < max) mids.push({ label: "一半", amount: half });
+  }
+  const presets: BetPreset[] = [{ label: "最小", amount: min }, ...mids, { label: "最大", amount: max }];
+  while (presets.length > PRESET_CAP) presets.splice(1, 1);
+  return presets;
 }
 
 export function computeBetRange(state: TableState): BetRange | null {
