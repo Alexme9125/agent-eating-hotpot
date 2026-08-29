@@ -1,0 +1,14 @@
+{
+  "name": "agent-eating-hotpot",
+  "install": "npm install && npm run build -w @hotpot/engine",
+  "terminals": [
+    {
+      "name": "dev",
+      "command": "npm run dev"
+    }
+  ],
+  "ports": [
+    { "name": "web", "port": 5173 },
+    { "name": "server", "port": 8080 }
+  ]
+}
