@@ -1,32 +1,5 @@
-import { formatTokens, type BetRange } from "@hotpot/engine";
+import { betPresets, formatTokens, type BetRange } from "@hotpot/engine";
 import { useEffect, useState } from "react";
-
-interface Preset {
-  label: string;
-  value: number;
-}
-
-function buildPresets(range: BetRange, pool: number): Preset[] {
-  if (range.locked || range.max <= range.min) return [];
-  const clamp = (v: number) => Math.min(range.max, Math.max(range.min, Math.round(v / 1000) * 1000));
-  const halfRange = clamp(range.min + (range.max - range.min) / 2);
-  const halfPool = clamp(Math.round(pool / 2 / 5000) * 5000);
-  const mid = halfPool > range.min && halfPool < range.max ? halfPool : halfRange;
-  const canClear = pool >= range.min && pool <= range.max;
-
-  const raw: Preset[] = [
-    { label: "最小", value: range.min },
-    { label: mid === halfPool && halfPool !== halfRange ? "半池" : "一半", value: mid },
-    { label: canClear ? "清池" : "打满", value: canClear ? clamp(pool) : range.max },
-  ];
-
-  const seen = new Set<number>();
-  return raw.filter((item) => {
-    if (seen.has(item.value)) return false;
-    seen.add(item.value);
-    return true;
-  });
-}
 
 export function ActionBar({
   range,
@@ -58,7 +31,11 @@ export function ActionBar({
     );
   }
 
-  const presets = buildPresets(range, pool);
+  const presets = betPresets(range).map((preset) =>
+    preset.amount === range.max && pool === range.max
+      ? { ...preset, label: "清池" }
+      : preset,
+  );
   const span = Math.max(1, range.max - range.min);
   const pct = range.locked ? 100 : Math.round(((amount - range.min) / span) * 100);
 
@@ -75,11 +52,12 @@ export function ActionBar({
             <div className="preset-row" role="group" aria-label="快捷 Tokens">
               {presets.map((p) => (
                 <button
-                  key={p.label}
+                  key={p.amount}
                   type="button"
-                  className={`preset-btn ${amount === p.value ? "selected" : ""}`}
+                  className={`preset-btn ${amount === p.amount ? "selected" : ""}`}
                   disabled={disabled}
-                  onClick={() => setAmount(p.value)}
+                  aria-pressed={amount === p.amount}
+                  onClick={() => setAmount(p.amount)}
                 >
                   {p.label}
                 </button>

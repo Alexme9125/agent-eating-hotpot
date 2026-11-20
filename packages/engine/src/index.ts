@@ -21,6 +21,7 @@ export {
   toPublicState,
   computeBetRange,
   betRangeFor,
+  betPresets,
   currentPlayer,
   forceAwaiting,
 } from "./table.js";
@@ -65,6 +66,7 @@ export {
   type HoleKind,
   type HoleHint,
   type BetRange,
+  type BetPreset,
   type RevealOutcome,
   type OutcomeKind,
   type Settlement,
