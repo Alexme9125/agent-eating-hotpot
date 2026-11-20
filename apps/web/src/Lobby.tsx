@@ -1,5 +1,9 @@
-import { DEFAULT_CONFIG, formatTokens } from "@hotpot/engine";
+import { DEFAULT_CONFIG, formatTokens, type Card } from "@hotpot/engine";
 import { useState } from "react";
+import { CardBack, CardView } from "./CardView";
+
+const SHOWCASE_LEFT: Card = { rank: 3, suit: "spades" };
+const SHOWCASE_RIGHT: Card = { rank: 12, suit: "hearts" };
 
 export function Lobby({
   name,
@@ -24,42 +28,81 @@ export function Lobby({
 
   return (
     <div className="lobby">
-      <header className="lobby-hero">
-        <p className="eyebrow">
-          底注 {formatTokens(DEFAULT_CONFIG.ante)}/人 · 最小添菜 {formatTokens(DEFAULT_CONFIG.minAdd)}
-        </p>
-        <h1>吃火锅</h1>
-        <p className="lede">把筹码投进许愿池。区间内吃进，牛角尖加倍，三张通吃。</p>
-      </header>
-      <section className="panel">
-        <label>
-          昵称
-          <input value={name} maxLength={16} onChange={(e) => onName(e.target.value)} placeholder="你的名字，桌上会显示" />
-        </label>
-        {error ? <p className="error">{error}</p> : null}
-        <button className="btn primary lg" disabled={busy} onClick={onPve}>
-          人机开局
-        </button>
-        <div className="split">
-          <button className="btn ghost" disabled={busy} onClick={onCreatePvp}>
-            创建房间
-          </button>
-          <div className="join">
-            <input
-              value={code}
-              maxLength={6}
-              placeholder="房间码"
-              onChange={(e) => setCode(e.target.value.toUpperCase())}
-            />
-            <button className="btn" disabled={busy || code.length < 4} onClick={() => onJoin(code)}>
-              加入
-            </button>
+      <div className="lobby-shell">
+        <header className="lobby-hero">
+          <div className="lobby-emblem" aria-hidden>
+            <div className="emblem-felt">
+              <CardView card={SHOWCASE_LEFT} tilt={-9} />
+              <div className="emblem-mid">
+                <CardBack />
+              </div>
+              <CardView card={SHOWCASE_RIGHT} tilt={9} />
+            </div>
           </div>
-        </div>
-        <button className="link" onClick={onOpenRules}>
-          查看规则
-        </button>
-      </section>
+          <h1>吃火锅</h1>
+          <p className="lede">
+            把 Tokens 投进许愿池。
+            <br />
+            第三张落入区间即赢，撞尖加倍，三张通吃。
+          </p>
+        </header>
+
+        <section className="panel">
+          <label className="field">
+            <span>你的昵称</span>
+            <input
+              value={name}
+              maxLength={16}
+              onChange={(e) => onName(e.target.value)}
+              placeholder="输入牌桌显示名称"
+            />
+          </label>
+
+          {error ? <p className="error">{error}</p> : null}
+
+          <button className="btn primary lg" disabled={busy} onClick={onPve}>
+            开始人机对局
+          </button>
+
+          <div className="divider">
+            <span>或与好友同桌</span>
+          </div>
+
+          <div className="pvp-row">
+            <button className="btn ghost" disabled={busy} onClick={onCreatePvp}>
+              创建房间
+            </button>
+            <div className="join">
+              <input
+                value={code}
+                maxLength={6}
+                placeholder="输入房间码"
+                onChange={(e) => setCode(e.target.value.toUpperCase())}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !busy && code.length >= 4) onJoin(code);
+                }}
+              />
+              <button
+                className="btn subtle"
+                disabled={busy || code.length < 4}
+                onClick={() => onJoin(code)}
+              >
+                加入
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <footer className="lobby-foot">
+          <span>
+            四人桌 · 底注 {formatTokens(DEFAULT_CONFIG.ante)} Tokens · 最小添菜{" "}
+            {formatTokens(DEFAULT_CONFIG.minAdd)} Tokens · {DEFAULT_CONFIG.dealsUntilSplit} 发摊池
+          </span>
+          <button type="button" className="link" onClick={onOpenRules}>
+            玩法规则
+          </button>
+        </footer>
+      </div>
     </div>
   );
 }

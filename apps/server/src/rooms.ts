@@ -1,19 +1,22 @@
 import {
   advance,
   applyAction,
-  botThinkMs,
-  chooseBotAction,
   continueFromSettlement,
   createTable,
   currentPlayer,
   DEFAULT_CONFIG,
+  FX_MS,
   LLM_PERSONAS,
   pickN,
+  planBotTurn,
+  planTableReactions,
   revealHoldMs,
   startHand,
   toPublicState,
+  type BubbleMood,
   type PlayerAction,
   type PublicState,
+  type SeatBubble,
   type TableState,
 } from "@hotpot/engine";
 import type { WebSocket } from "ws";
@@ -37,6 +40,7 @@ export interface RoomSnapshot {
   state: PublicState | null;
   deadline: number | null;
   status: string;
+  bubbles: Record<string, SeatBubble>;
 }
 
 interface Room {
@@ -47,12 +51,16 @@ interface Room {
   table: TableState | null;
   sockets: Map<string, Set<WebSocket>>;
   deadline: number | null;
+  bubbles: Record<string, SeatBubble>;
+  bubbleSeq: number;
   timers: {
     bot?: ReturnType<typeof setTimeout>;
     action?: ReturnType<typeof setTimeout>;
     advance?: ReturnType<typeof setTimeout>;
     settle?: ReturnType<typeof setTimeout>;
   };
+  thoughtTimers: ReturnType<typeof setTimeout>[];
+  reactionTimers: Set<ReturnType<typeof setTimeout>>;
   usedPersonas: Set<string>;
   rng: number;
 }
@@ -96,6 +104,7 @@ function snapshot(room: Room, you: string): RoomSnapshot {
     state: room.table ? toPublicState(room.table) : null,
     deadline: room.deadline,
     status: statusText(room),
+    bubbles: { ...room.bubbles },
   };
 }
 
@@ -110,13 +119,63 @@ function broadcast(room: Room): void {
   }
 }
 
-function clearTimers(room: Room): void {
+function clearThoughtTimers(room: Room): void {
+  for (const t of room.thoughtTimers) clearTimeout(t);
+  room.thoughtTimers = [];
+}
+
+function clearReactionTimers(room: Room): void {
+  for (const t of room.reactionTimers) clearTimeout(t);
+  room.reactionTimers.clear();
+}
+
+function clearThinkBubbles(room: Room): void {
+  for (const [pid, b] of Object.entries(room.bubbles)) {
+    if (b.kind === "think") delete room.bubbles[pid];
+  }
+}
+
+function clearAllBubbles(room: Room): void {
+  clearThoughtTimers(room);
+  clearReactionTimers(room);
+  room.bubbles = {};
+}
+
+function clearTimers(room: Room, keepReactions = false): void {
   for (const key of Object.keys(room.timers) as (keyof Room["timers"])[]) {
     const t = room.timers[key];
     if (t) clearTimeout(t);
     room.timers[key] = undefined;
   }
+  clearThoughtTimers(room);
+  if (!keepReactions) {
+    clearReactionTimers(room);
+    room.bubbles = {};
+  }
   room.deadline = null;
+}
+
+function setBubble(
+  room: Room,
+  playerId: string,
+  text: string,
+  kind: "think" | "react",
+  mood?: BubbleMood,
+  ttlMs?: number,
+): void {
+  room.bubbleSeq += 1;
+  const id = room.bubbleSeq;
+  room.bubbles[playerId] = { id, text, kind, mood };
+  if (ttlMs && ttlMs > 0) {
+    const timer = setTimeout(() => {
+      room.reactionTimers.delete(timer);
+      if (room.bubbles[playerId]?.id === id) {
+        delete room.bubbles[playerId];
+        broadcast(room);
+      }
+    }, ttlMs);
+    room.reactionTimers.add(timer);
+  }
 }
 
 function takePersonas(room: Room, n: number): typeof LLM_PERSONAS[number][] {
@@ -144,6 +203,7 @@ function fillBots(room: Room): void {
 
 function startTable(room: Room): void {
   fillBots(room);
+  clearAllBubbles(room);
   room.table = startHand(
     createTable(
       room.seats.map((s) => ({
@@ -171,29 +231,50 @@ function ensureLoop(room: Room): void {
 }
 
 function schedule(room: Room): void {
-  clearTimers(room);
   const table = room.table;
+  const keepReactions = Boolean(table && (table.phase === "awaiting" || table.phase === "reveal"));
+  clearTimers(room, keepReactions);
   if (!table) return;
 
   if (table.phase === "awaiting") {
+    clearThinkBubbles(room);
     const player = currentPlayer(table);
     if (!player) return;
     if (player.kind === "bot") {
-      const think = botThinkMs(table);
+      const plan = planBotTurn(table);
       room.deadline = null;
+
+      for (const beat of plan.thoughts) {
+        const t = setTimeout(() => {
+          if (
+            !room.table ||
+            room.table.phase !== "awaiting" ||
+            currentPlayer(room.table)?.id !== player.id
+          ) {
+            return;
+          }
+          setBubble(room, player.id, beat.text, "think", beat.mood);
+          broadcast(room);
+        }, beat.atMs);
+        room.thoughtTimers.push(t);
+      }
+
       room.timers.bot = setTimeout(() => {
         try {
-          const action = chooseBotAction(room.table!);
-          room.table = applyAction(room.table!, player.id, action);
+          if (room.bubbles[player.id]?.kind === "think") {
+            delete room.bubbles[player.id];
+          }
+          room.table = applyAction(room.table!, player.id, plan.action);
           broadcast(room);
           schedule(room);
         } catch (err) {
           console.error(err);
         }
-      }, think);
+      }, plan.thinkMs);
       broadcast(room);
       return;
     }
+
     const seat = room.seats.find((s) => s.id === player.id);
     if (seat && !seat.connected) {
       room.timers.action = setTimeout(() => autoFold(room, player.id), 8_000);
@@ -208,7 +289,29 @@ function schedule(room: Room): void {
   }
 
   if (table.phase === "reveal") {
-    const delay = revealHoldMs(table.outcome?.kind ?? "fold");
+    clearThinkBubbles(room);
+    const outcomeKind = table.outcome?.kind ?? "fold";
+    const delay = revealHoldMs(outcomeKind);
+    const beatDelay =
+      outcomeKind === "fold" || outcomeKind === "consecutive"
+        ? 240
+        : FX_MS.wager + FX_MS.flip + 180;
+
+    const reactions = planTableReactions(table);
+    for (const r of reactions) {
+      const timer = setTimeout(() => {
+        room.reactionTimers.delete(timer);
+        if (!room.table || room.table.phase === "settlement" || room.table.phase === "gameover") {
+          return;
+        }
+        // Never overwrite an active thinking bubble on that seat.
+        if (room.bubbles[r.playerId]?.kind === "think") return;
+        setBubble(room, r.playerId, r.text, "react", r.mood, 2_500);
+        broadcast(room);
+      }, beatDelay + r.delayMs);
+      room.reactionTimers.add(timer);
+    }
+
     room.timers.advance = setTimeout(() => {
       room.table = advance(room.table!);
       broadcast(room);
@@ -218,6 +321,7 @@ function schedule(room: Room): void {
   }
 
   if (table.phase === "settlement") {
+    clearAllBubbles(room);
     room.timers.settle = setTimeout(() => {
       room.table = continueFromSettlement(room.table!);
       broadcast(room);
@@ -260,7 +364,11 @@ export function createRoom(session: Session, mode: "pve" | "pvp"): RoomSnapshot 
     table: null,
     sockets: new Map(),
     deadline: null,
+    bubbles: {},
+    bubbleSeq: 0,
     timers: {},
+    thoughtTimers: [],
+    reactionTimers: new Set(),
     usedPersonas: new Set(),
     rng: Date.now() % 0x7fffffff,
   };
@@ -436,7 +544,7 @@ export function leaveRoom(session: Session): void {
     if (!removeHuman(room, session.playerId)) broadcast(room);
     return;
   }
-  if (!room.table) {
+  if (!room.table || room.mode === "pve") {
     if (!removeHuman(room, session.playerId)) broadcast(room);
     return;
   }

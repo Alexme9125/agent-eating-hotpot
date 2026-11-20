@@ -1,4 +1,4 @@
-import type { PublicState } from "@hotpot/engine";
+import type { PublicState, SeatBubble } from "@hotpot/engine";
 
 export interface Seat {
   id: string;
@@ -19,6 +19,7 @@ export interface RoomSnapshot {
   state: PublicState | null;
   deadline: number | null;
   status: string;
+  bubbles?: Record<string, SeatBubble>;
   message?: string;
 }
 
