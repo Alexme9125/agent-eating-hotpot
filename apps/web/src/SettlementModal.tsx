@@ -1,4 +1,5 @@
 import { formatTokens, type PublicState } from "@hotpot/engine";
+import { Avatar } from "./Avatar";
 
 export function SettlementModal({
   state,
@@ -15,40 +16,58 @@ export function SettlementModal({
 }) {
   const settlement = state.settlement;
   if (!settlement || (state.phase !== "settlement" && state.phase !== "gameover")) return null;
+
   const title =
     settlement.reason === "empty"
-      ? "许愿池已被清空"
+      ? "许愿池已清空"
       : settlement.reason === "split"
-        ? `满 ${state.config.dealsUntilSplit} 次发牌，摊池`
-        : "对局结束";
+        ? `满 ${state.config.dealsUntilSplit} 发 · 摊池结算`
+        : "本局结束";
+
+  const sorted = [...state.players].sort(
+    (a, b) => (settlement.deltas[b.id] ?? 0) - (settlement.deltas[a.id] ?? 0),
+  );
+
   return (
     <div className="overlay">
-      <div className="modal">
-        <h2>{title}</h2>
+      <div className="modal" role="dialog" aria-modal="true" aria-labelledby="settle-title">
+        <div className="modal-head">
+          <h2 id="settle-title">{title}</h2>
+          <p className="muted">
+            第 {state.handNumber} 盘 · 池余 {formatTokens(settlement.leftoverPool)} Tokens
+            {settlement.splitEach ? ` · 每人分得 ${formatTokens(settlement.splitEach)} Tokens` : ""}
+          </p>
+        </div>
+
         <ul className="delta-list">
-          {state.players.map((p) => {
+          {sorted.map((p) => {
             const d = settlement.deltas[p.id] ?? 0;
             return (
               <li key={p.id} className={p.id === you ? "me" : ""}>
-                <span>
-                  {p.name}
-                  {p.id === you ? "（你）" : ""}
-                </span>
-                <b className={d >= 0 ? "up" : "down"}>
-                  {d >= 0 ? "+" : ""}
+                <div className="delta-player">
+                  <Avatar name={p.name} personaId={p.personaId} you={p.id === you} size="sm" />
+                  <div>
+                    <div className="delta-name">
+                      {p.name}
+                      {p.id === you ? <span className="tag you-tag">你</span> : null}
+                    </div>
+                    <small className="muted">余额 {formatTokens(p.tokens)} Tokens</small>
+                  </div>
+                </div>
+                <b className={`delta-val ${d > 0 ? "up" : d < 0 ? "down" : "flat"}`}>
+                  {d > 0 ? "+" : ""}
                   {formatTokens(d)}
+                  <small> Tokens</small>
                 </b>
               </li>
             );
           })}
         </ul>
-        <p className="muted">
-          许愿池剩余 {formatTokens(settlement.leftoverPool)} Tokens
-          {settlement.splitEach ? ` · 每人分得 ${formatTokens(settlement.splitEach)}` : ""}
-        </p>
+
         {mode === "pvp" ? (
-          <p className="muted">返回大厅后本局立即结束，你的座位空出，房间回到等待开局。</p>
+          <p className="muted settle-note">返回大厅后本局立即结束，房间回到等待状态。</p>
         ) : null}
+
         <div className="row">
           {state.phase === "gameover" ? (
             <button className="btn primary" onClick={onLeave}>

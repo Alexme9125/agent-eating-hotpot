@@ -1,34 +1,68 @@
-import { hintSummary, rankLabel, type HoleHint, type Rank } from "@hotpot/engine";
+import { isAceKing, rankLabel, type Card, type HoleHint, type OutcomeKind, type Rank } from "@hotpot/engine";
 
-export function HintBar({ hint }: { hint: HoleHint | null }) {
+const ALL_RANKS: readonly Rank[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
+
+export function HintBar({
+  hint,
+  hole,
+  third,
+  showThird,
+  outcomeKind,
+}: {
+  hint: HoleHint | null;
+  hole?: [Card, Card] | null;
+  third?: Card | null;
+  showThird?: boolean;
+  outcomeKind?: OutcomeKind;
+}) {
   if (!hint) return null;
+
   if (hint.kind === "consecutive") {
-    return <div className="hint">连张：系统将自动放弃</div>;
+    return (
+      <div className="hint-strip consecutive">
+        <span>连张无区间 · 自动过牌</span>
+      </div>
+    );
   }
-  if (hint.kind === "pair") {
-    return <div className="hint">{hintSummary(hint)}</div>;
-  }
-  const chip = (rank: Rank, tone: string) => (
-    <span key={`${tone}-${rank}`} className={`rank-chip ${tone}`}>
-      {rankLabel(rank)}
-    </span>
-  );
-  const winRange =
-    hint.winRanks.length > 0
-      ? `${rankLabel(hint.winRanks[0]!)}–${rankLabel(hint.winRanks[hint.winRanks.length - 1]!)}`
-      : "无";
-  const horns = hint.hornRanks.map(rankLabel).join("/");
+
+  const winSet = new Set(hint.winRanks);
+  const hornSet = new Set(hint.hornRanks);
+  const ak = Boolean(hole && isAceKing(hole[0], hole[1]));
+  const landedRank = showThird && third ? third.rank : null;
+
+  const summary =
+    hint.kind === "pair"
+      ? `对 ${rankLabel(hint.hornRanks[0]!)} · 再出同点通吃全池`
+      : ak
+        ? `赢 ${hint.winRanks.length} 档 · 超级牛角尖 ×4`
+        : `赢 ${hint.winRanks.length} 档 · 牛角尖 ×2`;
+
   return (
-    <div className="hint">
-      <span className="hint-full">
-        <span>能赢</span>
-        {hint.winRanks.map((r) => chip(r, "win"))}
-        <span>牛角尖</span>
-        {hint.hornRanks.map((r) => chip(r, "horn"))}
-      </span>
-      <span className="hint-short">
-        能赢 {winRange} · 牛角 {horns}
-      </span>
+    <div className="hint-ruler" aria-label={summary}>
+      <div className="ruler-track">
+        {ALL_RANKS.map((r) => {
+          const isPairTarget = hint.kind === "pair" && hornSet.has(r);
+          const isWin = winSet.has(r);
+          const isHorn = hint.kind === "spread" && hornSet.has(r);
+          const isLanded = landedRank === r;
+          const cls = [
+            "ruler-cell",
+            isPairTarget ? "is-pair" : "",
+            isWin ? "is-win" : "",
+            isHorn ? "is-horn" : "",
+            isLanded ? "is-landed" : "",
+            isLanded && outcomeKind ? `landed-${outcomeKind}` : "",
+          ]
+            .filter(Boolean)
+            .join(" ");
+          return (
+            <span key={r} className={cls}>
+              {rankLabel(r)}
+            </span>
+          );
+        })}
+      </div>
+      <div className="ruler-caption">{summary}</div>
     </div>
   );
 }

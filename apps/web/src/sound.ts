@@ -45,13 +45,14 @@ export async function unlockSound(): Promise<void> {
   }
 }
 
-function beep(
+function tone(
   freq: number,
   when: number,
   dur: number,
   type: OscillatorType,
   gain: number,
   slideTo?: number,
+  cutoff = 3600,
 ): void {
   if (!ctx) return;
   const osc = ctx.createOscillator();
@@ -61,9 +62,9 @@ function beep(
   osc.frequency.setValueAtTime(freq, when);
   if (slideTo) osc.frequency.exponentialRampToValueAtTime(Math.max(40, slideTo), when + dur);
   filter.type = "lowpass";
-  filter.frequency.setValueAtTime(type === "sine" ? 4200 : 1800, when);
+  filter.frequency.setValueAtTime(cutoff, when);
   amp.gain.setValueAtTime(0.0001, when);
-  amp.gain.exponentialRampToValueAtTime(gain, when + 0.018);
+  amp.gain.exponentialRampToValueAtTime(gain, when + 0.012);
   amp.gain.exponentialRampToValueAtTime(0.0001, when + dur);
   osc.connect(filter);
   filter.connect(amp);
@@ -72,35 +73,37 @@ function beep(
   osc.stop(when + dur + 0.03);
 }
 
-export function playOutcome(kind: OutcomeKind): void {
+function paperSnap(when: number, gain = 0.045): void {
+  if (!ctx) return;
+  const len = Math.floor(ctx.sampleRate * 0.055);
+  const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) {
+    const env = Math.exp(-i / (len * 0.24));
+    data[i] = (Math.random() * 2 - 1) * env;
+  }
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  const filter = ctx.createBiquadFilter();
+  filter.type = "bandpass";
+  filter.frequency.setValueAtTime(1750, when);
+  filter.Q.setValueAtTime(1.1, when);
+  const amp = ctx.createGain();
+  amp.gain.setValueAtTime(gain, when);
+  src.connect(filter);
+  filter.connect(amp);
+  amp.connect(ctx.destination);
+  src.start(when);
+}
+
+export function playFlip(): void {
   if (!enabled) return;
   void (async () => {
     await unlockSound();
     if (!enabled || !ctx || ctx.state !== "running") return;
-    const t = ctx.currentTime + 0.02;
-    if (kind === "win") {
-      beep(523, t, 0.11, "sine", 0.09);
-      beep(659, t + 0.08, 0.12, "sine", 0.1);
-      beep(784, t + 0.16, 0.18, "triangle", 0.08);
-      return;
-    }
-    if (kind === "triple_win") {
-      beep(523, t, 0.1, "sine", 0.09);
-      beep(659, t + 0.07, 0.1, "sine", 0.1);
-      beep(784, t + 0.14, 0.1, "triangle", 0.1);
-      beep(1046, t + 0.22, 0.22, "sine", 0.08);
-      return;
-    }
-    if (kind === "lose" || kind === "triple_lose") {
-      beep(196, t, 0.16, "triangle", 0.08, 140);
-      beep(147, t + 0.12, 0.22, "sine", 0.07, 110);
-      return;
-    }
-    if (kind === "horn") {
-      beep(311, t, 0.12, "square", 0.05);
-      beep(233, t + 0.08, 0.2, "square", 0.045, 170);
-      return;
-    }
+    const t = ctx.currentTime + 0.01;
+    paperSnap(t, 0.055);
+    tone(420, t, 0.04, "sine", 0.02, 260, 1400);
   })();
 }
 
@@ -110,8 +113,42 @@ export function playWager(): void {
     await unlockSound();
     if (!enabled || !ctx || ctx.state !== "running") return;
     const t = ctx.currentTime + 0.01;
-    beep(880, t, 0.05, "triangle", 0.04);
-    beep(660, t + 0.05, 0.07, "sine", 0.035, 520);
+    // Ceramic chip double clink
+    tone(1480, t, 0.038, "triangle", 0.038, 1220, 3200);
+    tone(1120, t + 0.042, 0.052, "sine", 0.032, 900, 2600);
+  })();
+}
+
+export function playOutcome(kind: OutcomeKind): void {
+  if (!enabled) return;
+  void (async () => {
+    await unlockSound();
+    if (!enabled || !ctx || ctx.state !== "running") return;
+    const t = ctx.currentTime + 0.02;
+    if (kind === "win") {
+      tone(523.25, t, 0.13, "sine", 0.075);
+      tone(659.25, t + 0.075, 0.14, "sine", 0.085);
+      tone(783.99, t + 0.15, 0.22, "triangle", 0.065, undefined, 2800);
+      return;
+    }
+    if (kind === "triple_win") {
+      tone(523.25, t, 0.11, "sine", 0.08);
+      tone(659.25, t + 0.065, 0.11, "sine", 0.085);
+      tone(783.99, t + 0.13, 0.13, "triangle", 0.085, undefined, 3000);
+      tone(1046.5, t + 0.2, 0.28, "sine", 0.08);
+      return;
+    }
+    if (kind === "lose" || kind === "triple_lose") {
+      tone(220, t, 0.14, "triangle", 0.065, 165, 1100);
+      tone(165, t + 0.1, 0.2, "sine", 0.055, 128, 900);
+      return;
+    }
+    if (kind === "horn") {
+      // Crisp wooden low-dissonance knock instead of harsh buzzer
+      tone(294, t, 0.11, "triangle", 0.08, 220, 1200);
+      tone(207, t + 0.085, 0.22, "triangle", 0.075, 148, 950);
+      paperSnap(t + 0.01, 0.03);
+    }
   })();
 }
 

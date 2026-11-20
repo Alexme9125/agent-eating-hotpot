@@ -1,19 +1,21 @@
-import type { PublicState, RevealFxStage, RevealOutcome } from "@hotpot/engine";
+import { formatTokens, type PublicState, type RevealFxStage, type RevealOutcome } from "@hotpot/engine";
 import { useEffect, useRef, useState } from "react";
-import { playOutcome, playWager } from "./sound";
+import { playFlip, playOutcome, playWager } from "./sound";
 
-interface Ball {
+interface TokenChip {
   id: number;
   x: number;
   y: number;
   dx: number;
   dy: number;
   delay: number;
+  variant: "jade" | "gold" | "crimson";
 }
 
-interface Slogan {
+interface Stamp {
   id: number;
   text: string;
+  sub?: string;
   x: number;
   y: number;
   tone: string;
@@ -24,21 +26,29 @@ function centerOf(el: Element, root: DOMRect): { x: number; y: number } {
   return { x: box.left + box.width / 2 - root.left, y: box.top + box.height / 2 - root.top };
 }
 
-function sloganFor(outcome: RevealOutcome): { text: string; tone: string } | null {
-  if (outcome.kind === "win") return { text: "爽吃", tone: "win" };
-  if (outcome.kind === "triple_win") return { text: "通吃", tone: "triple" };
-  if (outcome.kind === "lose" || outcome.kind === "triple_lose") return { text: "挨饿", tone: "lose" };
-  if (outcome.kind === "consecutive") return { text: "连张", tone: "skip" };
+function stampFor(outcome: RevealOutcome): { text: string; sub?: string; tone: string } | null {
+  if (outcome.kind === "win") {
+    return { text: "爽吃", sub: `+${formatTokens(outcome.amount)}`, tone: "win" };
+  }
+  if (outcome.kind === "triple_win") {
+    return { text: "三张通吃", sub: `+${formatTokens(outcome.amount)}`, tone: "triple" };
+  }
+  if (outcome.kind === "lose" || outcome.kind === "triple_lose") {
+    return { text: "挨饿", sub: `-${formatTokens(outcome.amount)}`, tone: "lose" };
+  }
+  if (outcome.kind === "consecutive") {
+    return { text: "连张过牌", tone: "skip" };
+  }
   if (outcome.kind === "horn") {
     return outcome.multiplier === 4
-      ? { text: "超级牛角尖", tone: "super" }
-      : { text: "牛角尖", tone: "horn" };
+      ? { text: "超级牛角尖 ×4", sub: `-${formatTokens(outcome.amount)}`, tone: "super" }
+      : { text: "牛角尖 ×2", sub: `-${formatTokens(outcome.amount)}`, tone: "horn" };
   }
   return null;
 }
 
 function chipCount(amount: number): number {
-  return Math.min(8, Math.max(4, Math.round(amount / 12_000)));
+  return Math.min(7, Math.max(3, Math.round(amount / 15_000)));
 }
 
 export function TableFx({
@@ -51,50 +61,56 @@ export function TableFx({
   const hostRef = useRef<HTMLDivElement>(null);
   const seq = useRef(0);
   const fired = useRef("");
-  const [balls, setBalls] = useState<Ball[]>([]);
-  const [slogans, setSlogans] = useState<Slogan[]>([]);
+  const [chips, setChips] = useState<TokenChip[]>([]);
+  const [stamps, setStamps] = useState<Stamp[]>([]);
 
   const outcomeKey = state
     ? `${state.handNumber}-${state.dealsThisHand}-${state.currentPlayerId}-${state.phase}-${state.outcome?.kind ?? ""}-${state.outcome?.amount ?? 0}`
     : "";
   const handKey = state ? `hand-${state.handNumber}` : "";
 
-  function fly(fromEl: Element | null, toEl: Element | null, count: number) {
+  function fly(
+    fromEl: Element | null,
+    toEl: Element | null,
+    count: number,
+    variant: TokenChip["variant"] = "jade",
+  ) {
     const host = hostRef.current;
     if (!host || !fromEl || !toEl) return;
     const root = host.getBoundingClientRect();
     const from = centerOf(fromEl, root);
     const to = centerOf(toEl, root);
-    const next: Ball[] = [];
+    const next: TokenChip[] = [];
     for (let i = 0; i < count; i++) {
       seq.current += 1;
-      const jitter = (n: number) => n + (Math.random() - 0.5) * 18;
+      const jitter = (n: number) => n + (Math.random() - 0.5) * 16;
       next.push({
         id: seq.current,
         x: jitter(from.x),
         y: jitter(from.y),
-        dx: to.x - from.x + (Math.random() - 0.5) * 24,
-        dy: to.y - from.y + (Math.random() - 0.5) * 16,
-        delay: i * 45,
+        dx: to.x - from.x + (Math.random() - 0.5) * 20,
+        dy: to.y - from.y + (Math.random() - 0.5) * 14,
+        delay: i * 48,
+        variant,
       });
     }
-    setBalls((prev) => [...prev, ...next]);
+    setChips((prev) => [...prev, ...next]);
     window.setTimeout(() => {
-      setBalls((prev) => prev.filter((b) => !next.some((n) => n.id === b.id)));
-    }, 900 + count * 45);
+      setChips((prev) => prev.filter((b) => !next.some((n) => n.id === b.id)));
+    }, 880 + count * 48);
   }
 
-  function shout(playerEl: Element | null, text: string, tone: string) {
+  function shout(playerEl: Element | null, text: string, tone: string, sub?: string) {
     const host = hostRef.current;
     if (!host || !playerEl) return;
     const root = host.getBoundingClientRect();
     const at = centerOf(playerEl, root);
     seq.current += 1;
-    const item: Slogan = { id: seq.current, text, x: at.x, y: at.y - 28, tone };
-    setSlogans((prev) => [...prev, item]);
+    const item: Stamp = { id: seq.current, text, sub, x: at.x, y: at.y - 34, tone };
+    setStamps((prev) => [...prev, item]);
     window.setTimeout(() => {
-      setSlogans((prev) => prev.filter((s) => s.id !== item.id));
-    }, 1700);
+      setStamps((prev) => prev.filter((s) => s.id !== item.id));
+    }, 1750);
   }
 
   useEffect(() => {
@@ -104,9 +120,9 @@ export function TableFx({
     const pool = host.parentElement?.querySelector("[data-pool]");
     const seats = host.parentElement?.querySelectorAll("[data-player-id]");
     if (!pool || !seats?.length) return;
-    shout(pool, "底注", "ante");
+    shout(pool, `底注 ${formatTokens(state.config.ante)}`, "ante");
     seats.forEach((seat, i) => {
-      window.setTimeout(() => fly(seat, pool, 4), i * 90);
+      window.setTimeout(() => fly(seat, pool, 3, "gold"), i * 85);
     });
     // Only on new hand.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -120,59 +136,70 @@ export function TableFx({
     const host = hostRef.current;
     if (!host) return;
     const root = host.parentElement;
-    const pool = root?.querySelector("[data-pool]");
-    const seat = root?.querySelector(`[data-player-id="${state.currentPlayerId}"]`);
+    const pool = root?.querySelector("[data-pool]") ?? null;
+    const seat = root?.querySelector(`[data-player-id="${state.currentPlayerId}"]`) ?? null;
     const outcome = state.outcome;
     const wager = outcome.wager ?? 0;
     const kind = outcome.kind;
 
     if (stage === "wager" && wager > 0) {
-      fly(seat, pool, chipCount(wager));
+      fly(seat, pool, chipCount(wager), "jade");
       playWager();
       return;
     }
 
+    if (stage === "flip") {
+      playFlip();
+      return;
+    }
+
     if (stage === "result") {
-      const slogan = sloganFor(outcome);
-      if (slogan) shout(seat, slogan.text, slogan.tone);
+      const stamp = stampFor(outcome);
+      if (stamp) shout(seat, stamp.text, stamp.tone, stamp.sub);
       if (kind !== "fold" && kind !== "consecutive") playOutcome(kind);
       return;
     }
 
     if (stage === "payout") {
       if (kind === "win" || kind === "triple_win") {
-        fly(pool, seat, kind === "triple_win" ? 10 : chipCount(wager + outcome.amount));
+        fly(
+          pool,
+          seat,
+          kind === "triple_win" ? 9 : chipCount(wager + outcome.amount),
+          kind === "triple_win" ? "gold" : "jade",
+        );
       } else if (kind === "horn") {
         const extra = outcome.amount - wager;
-        if (extra > 0) fly(seat, pool, chipCount(extra));
+        if (extra > 0) fly(seat, pool, chipCount(extra), "crimson");
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stage, outcomeKey]);
 
   return (
-    <div className="fx-layer" ref={hostRef}>
-      {balls.map((ball) => (
+    <div className="fx-layer" ref={hostRef} aria-hidden>
+      {chips.map((chip) => (
         <span
-          key={ball.id}
-          className="chip-ball"
+          key={chip.id}
+          className={`chip-token chip-${chip.variant}`}
           style={{
-            left: ball.x,
-            top: ball.y,
-            ["--dx" as string]: `${ball.dx}px`,
-            ["--dy" as string]: `${ball.dy}px`,
-            ["--delay" as string]: `${ball.delay}ms`,
+            left: chip.x,
+            top: chip.y,
+            ["--dx" as string]: `${chip.dx}px`,
+            ["--dy" as string]: `${chip.dy}px`,
+            ["--delay" as string]: `${chip.delay}ms`,
           }}
         />
       ))}
-      {slogans.map((item) => (
-        <b
+      {stamps.map((item) => (
+        <div
           key={item.id}
-          className={`slogan ${item.tone}`}
+          className={`outcome-stamp tone-${item.tone}`}
           style={{ left: item.x, top: item.y }}
         >
-          {item.text}
-        </b>
+          <span>{item.text}</span>
+          {item.sub ? <em>{item.sub}</em> : null}
+        </div>
       ))}
     </div>
   );

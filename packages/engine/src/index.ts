@@ -5,7 +5,9 @@ export {
   personaById,
   styleForPersona,
   DEFAULT_THINK_LINES,
+  type BotArchetype,
   type LlmPersona,
+  type PersonaVoices,
   type PlayStyle,
 } from "./personas.js";
 export { nextRng, shuffleInPlace, pickN } from "./rng.js";
@@ -23,7 +25,21 @@ export {
   currentPlayer,
   forceAwaiting,
 } from "./table.js";
-export { chooseBotAction, botThinkMs, evaluateSpot } from "./bot.js";
+export {
+  chooseBotAction,
+  botThinkMs,
+  evaluateSpot,
+  inferBotEmotion,
+  planBotTurn,
+  planTableReactions,
+  type BotEmotion,
+  type BotThoughtBeat,
+  type BotTurnPlan,
+  type BubbleMood,
+  type SeatBubble,
+  type SpotEval,
+  type TableReaction,
+} from "./bot.js";
 export {
   FX_MS,
   openingRevealStage,
